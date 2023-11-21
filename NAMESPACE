@@ -1,0 +1,5 @@
+export(smof)
+importFrom(stats,  
+  qnorm, model.frame,  model.matrix, model.response, formula, logLik,
+  lm, lm.fit, glm, glm.fit, update, deviance, optim)
+# importFrom(survreg, coxph.penal, coxph)
