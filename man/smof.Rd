@@ -34,8 +34,8 @@ smof(object, data, factors, distr.type = "gh", fast.fit = FALSE, trace = FALSE)
 \details{
 Function \code{smof} implements the methodology proposed by Azzalini (2023),
 briefly summarized in the \sQuote{Background} section. 
-It is advisable to read at least this section in case the referenced paper 
-is not examined. The published paper is open access.  
+It is recommended to read at least that section in case the referenced paper 
+is not examined. The published paper has open access.  
 
 Start from an \code{object} obtained as the outcome from some fitting 
 procedure, whose linear predictor includes one or more ordered factor(s)
@@ -52,21 +52,25 @@ a standard normal variate.
 Specifically, the admissible families and corresponding strings to be
 specified in \code{distr.type} are as follows:
 \tabular{lll}{
-  Johnson's \eqn{S_U}            \tab \tab\code{"SU"} \cr
-  Tukey's \emph{g}-and-\emph{h}  \tab \tab \code{"gh"},  \code{"g-and-h"} \cr
+  Johnson's \eqn{S_U}            \tab \eqn{\quad}{  } \tab \code{"SU"} \cr
+  Tukey's \emph{g}-and-\emph{h}  \tab \tab \code{"gh"}, \code{"g-and-h"} \cr
   Jones and Pewsey's \emph{sinh-arcsinh}
-                            \tab \tab \code{"sinh-arcsinh"}, \code{"SAS"} \cr
+                            \tab \tab \code{"sinh-arcsinh"}, \code{"SAS"}  
 }% end tabular
 where either string name can be used when two of them are indicated. 
-Each of these families involve two parameters for shape regulation.
-The same \code{distr.type} is employed for all components of \code{factors}; 
-only the chosen parameters differ.
+All these families involve two parameters for shape regulation; location and 
+scale parameters are not considered, because irrelevant for our purposes.
+In each case, the adopted parameterization is the \sQuote{standard} one,
+but explicit specifications are provided in the reference below.  
+The same \code{distr.type} is employed for all the components of \code{factors}.
 
 The admissible classes for \code{object} are currently as follows,
 listed along the corresponding target criteria:
 \tabular{lll}{
   \kbd{class} \tab \kbd{fitting function (package)} \tab \kbd{target criterion}\cr
-  \kbd{------------}\tab \kbd{----------------------------}\tab \kbd{-------------}\cr
+  \eqn{\rule[0.8ex]{5em}{0.02ex}}{------------}\tab 
+       \eqn{\rule[0.8ex]{12em}{0.02ex}}{----------------------------}\tab 
+       \eqn{\rule[0.8ex]{10em}{0.02ex}}{-------------}\cr
    lm           \tab lm (stats)         \tab sum of squared residuals \cr
    mlm          \tab lm (stats)         \tab [see below] \cr
    glm          \tab glm (stats)        \tab deviance \cr
@@ -74,7 +78,7 @@ listed along the corresponding target criteria:
    coxph        \tab coxph (survival)   \tab \eqn{-}loglikelihood \cr
    coxph.penal  \tab coxph (survival)   \tab \eqn{-}loglikelihood 
 } % end tabular
-For an object on class \code{mlm}, the target function is formed by summing
+For an object of class \code{mlm}, the target function is formed by summing
 terms where the contribution  from the \eqn{j}-th response variable is
 \eqn{(1-R^2_j)}, where \eqn{R^2_j} is the \code{r-squared} statistic for 
 that component of the fitted model. 
@@ -87,9 +91,9 @@ The above list of classes may be expanded in the future, depending on feedback.
 
 The rest of this section is slightly of more technical nature, 
 and it may be not of interest to the casual user, especially if
-the option \code{fast.fit=TRUE} is not activated.
-Operationally, estimation  of the  \code{distr.type}  parameters 
-is performed via optimization of the pertaining target criterion,
+the option \code{fast.fit=TRUE} is not selected.
+Operationally, estimation of the \code{distr.type} parameters is performed 
+via optimization of the pertaining target criterion,
 as indicated by the table above.
 For each candidate set of parameters, each factor included in 
 \code{factors} is replaced by values determined by the 
@@ -129,16 +133,20 @@ substantial in some cases.
 } % end details
 
 \value{
-A list with the following components
-  \item{object}{an updated version of the original \code{object}; 
-        this is itself a list, whose structure depends on its class.}
-  \item{data}{the new data frame with the  ordered factors 
-        replaced by numeric score variables.}
-  \item{distr}{a list with two components: (1) \code{type}, the name of
-     of the distribution type; (2) \code{param}, a matrix of fitted parameters  
-     with as many rows as \code{length(factors)}.}
+A list with the following components:
+  \item{call}{the calling statement}
+  \item{new.object}{an updated version of the original \code{object}, with 
+    the components of \code{factors} in the model replaced by new variables; 
+    this \code{object} is itself a list, whose structure depends on its class.}
+  \item{new.data}{a new data frame where the ordered factors are replaced 
+     by numeric variables representing scores.}
+  \item{distr}{a list with two components: [1] \code{type}, the name of
+    of the distribution type; [2] \code{param}, a matrix of fitted parameters  
+    with as many rows as \code{length(factors)}.}
   \item{factor.scores}{a list of numeric vectors with the scores assigned 
-      to the levels of each factor.}    
+    to the levels of each factor.}   
+  \item{original.factors}{a list with the names and the levels of the original 
+    \code{factors}.}    
 }
 
 \section{Background}{
@@ -163,8 +171,8 @@ which indicate how the \emph{K} levels are \dQuote{really} spaced.
 Combining these two features, the key feature of the proposal is 
 interpretability of the construction.
 
-The proposed method represents an alternative to the use of polynomial contrasts, 
-which is the default action taken by \R for ordered factors;
+The proposed method represents an alternative to the use of polynomial 
+contrasts, which is the default action taken by \R for ordered factors;
 see the documentation of \code{contr.poly}.
 
 In the proposed logic, the constructed scores are intended to be used, and
@@ -188,6 +196,23 @@ score system.
 For a more comprehensive exposition and discussion, see the reference below.
 }
 
+\note{
+For subsequent computations on the object returned by \code{smof}, difficulties 
+may arise if the call to the fitting function does not set \code{model=TRUE}.
+This is not a problem with \code{lm} and \code{glm}, if their default setting
+\code{model=TRUE} has not been modified.
+The  default setting of \code{coxph} is instead \code{model=FALSE}.
+This implies, for instance, that issuing the \code{survival} command   
+\code{survfit(smof4$new.object)}, right after running 
+the code of Example 4 below, would cause an error. 
+There exist various ways to overcome this snag; the simplest one is to write  
+\tabular{rl}{
+  \tab \code{new.data <- smof4$new.data} \cr
+  \tab \code{s <- survfit(smof4$new.object)}
+} 
+This indication is temporary and it may be superseded by a different design 
+in future versions of the package.
+}
 
 \references{
 Azzalini, A. (2023). On the use of ordered factors as explanatory variables.
@@ -201,7 +226,8 @@ Azzalini, A. (2023). On the use of ordered factors as explanatory variables.
 %% ~Make other sections like Warning with \section{Warning }{....} ~
 
 \seealso{\code{\link[stats]{contr.poly}}, \code{\link[stats]{update}}, 
-  \code{\link[stats]{lm.fit}}, \code{\link[stats]{glm.fit}} }
+  \code{\link[stats]{lm}}, \code{\link[stats]{lm.fit}}, 
+  \code{\link[stats]{glm}}, \code{\link[stats]{glm.fit}} }
 
 \examples{
 # Example 1, reconstructs Table 2 (fist part) of the reference
@@ -210,30 +236,27 @@ library(datasets)
 data(esoph)
 contrasts(esoph$agegp, 2) <- contr.poly(6) # optional
 contrasts(esoph$tobgp, 1) <- contr.poly(4) # optional
-obj1 <- glm(cbind(ncases, ncontrols) ~ agegp + tobgp + alcgp, family=binomial(), data=esoph) 
+fit1 <- glm(cbind(ncases, ncontrols) ~ agegp + tobgp + alcgp, family=binomial(), data=esoph) 
 message("original fit:") 
-print(summary(obj1))      
-out1 <- smof(obj1, esoph, "alcgp", distr.type="SU")
-message("smof fit:") 
-print(summary(out1$object)) 
-print(out1$distr)
-print(out1$factors.scores)
+print(summary(fit1))      
+smof1 <- smof(fit1, esoph, "alcgp", distr.type="SU")
+print(smof1, type="b", pch=20, col=4)
+print(summary(smof1))
+plot(smof1)
 #
-# Example 2 , reconstructs Table 4 (fist part) of the reference
+# Example 2 , reconstructs Table 4 (first part) of the reference
 if(require(ggplot2, quietly=TRUE)) {
 message("--- Example 2: diamonds data ---")
-data(diamonds)  
+data(diamonds, package="ggplot2")  
 dmd <- data.frame(diamonds[seq(1, 53940, by=100),]) # use a subset of the data
 dmd <- dmd[-c(518, 519, 523),] # remove three outliers
 contrasts(dmd$cut, 1) <- contr.poly(5) 
-obj2 <- lm(sqrt(price) ~ carat + clarity + color + cut, data=dmd)
-message("original fit:") 
-print(summary(obj2))      
-out2 <- smof(obj2, dmd,  c("color", "clarity"), distr.type="gh")
+fit2 <- lm(sqrt(price) ~ carat + clarity + color + cut, data=dmd)
+smof2 <- smof(fit2, dmd,  c("color", "clarity"), distr.type="gh")
 message("smof fit:") 
-print(summary(out2$object))
-print(out2$distr)
-print(out2$factors.scores)
+print(smof2)
+print(summary(smof2))
+plot(smof2, which="clarity")
 } # end diamonds example
 #
 # Example 3
@@ -242,11 +265,19 @@ message("--- Example 3: lung data ---")
 lung0 <- lung
 lung0$ph.karno <- ordered(lung0$ph.karno)
 contrasts(lung0$ph.karno, 3) <- contr.poly(6)
-lfit3 <- survreg(Surv(time, status) ~ ph.karno, data=lung0)
-out3 <- smof(lfit3, lung0, "ph.karno")
-print(summary(out3$object))
-print(out3$factors.scores) # not equally spaced scores
-} # end lung example
+fit3 <- survreg(Surv(time, status) ~ ph.karno, data=lung0)
+smof3 <- smof(fit3, lung0, "ph.karno")
+print(summary(smof3))
+plot(smof3)  # Karnofsky scores do not seem to be linearly spaced
+# 
+message("--- Example 4: PBC data ---")
+data(pbc, package="survival")
+pbc$stage <- ordered(pbc$stage)
+fit4 <- coxph(Surv(time) ~ strata(status) + stage, data=pbc)
+smof4 <- smof(fit4, data=pbc, factors="stage")
+print(summary(smof4))
+plot(smof4)
+} # end of survival examples
 }
 % R documentation directory (show via RShowDoc("KEYWORDS")):
 \keyword{models}
@@ -255,3 +286,5 @@ print(out3$factors.scores) # not equally spaced scores
 \concept{ordered factor}
 \concept{categorical data}
  
+
+  

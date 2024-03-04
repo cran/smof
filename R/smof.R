@@ -2,28 +2,28 @@
 #  This file is a component of the R package 'smof' 
 #  copyright (C) 2023 Adelchi Azzalini
 
+transform.scores <- function(K, distr.type, param) {
+  gh.funct <- g_and_h.funct <- function(z, g, h) # Tukey g-and-h distribution
+                 if(g == 0) z*exp(h*z^2/2) else (exp(g*z)-1)*exp(h*z^2/2)/g  
+  SU.funct <- function(z, gamma, delta) sinh((z-gamma)/delta)  # Johnson S_U
+  sinh_arcsinh.funct <- function(z, eps, delta) sinh((asinh(z) + eps)/delta)
+  p <- param
+  if(p[2] < 0) stop("(param[2] < 0")
+  if(p[2] == 0 & distr.type %in% c("SU", "sinh-arcsinh")) 
+        stop("(param[2]=0 not compatible with distr.type")
+  norm.scores <- qnorm((1:K)/(1+K))
+  switch(distr.type, 
+        "gh" = gh.funct(norm.scores, p[1], p[2]),
+        "g-and-h" = g_and_h.funct(norm.scores, p[1], p[2]),
+        "SU" = SU.funct(norm.scores, p[1], p[2]),
+        "sinh-arcsinh" = sinh_arcsinh.funct(norm.scores, p[1], p[2]),
+        "SAS" = sinh_arcsinh.funct(norm.scores, p[1], p[2]),
+        NA)
+  }
+    
 smof <-
 function(object, data, factors, distr.type="gh", fast.fit=FALSE, trace=FALSE)
-{
-  transform.scores <- function(K, distr.type, param) {
-    gh.funct <- g_and_h.funct <- function(z, g, h) # Tukey g-and-h distribution
-                   if(g == 0) z*exp(h*z^2/2) else (exp(g*z)-1)*exp(h*z^2/2)/g  
-    SU.funct <- function(z, gamma, delta) sinh((z-gamma)/delta)  # Johnson S_U
-    sinh_arcsinh.funct <- function(z, eps, delta) sinh((asinh(z) + eps)/delta)
-    p <- param
-    if(p[2] < 0) stop("(param[2] < 0")
-    if(p[2] == 0 & distr.type %in% c("SU", "sinh-arcsinh")) 
-          stop("(param[2]=0 not compatible with distr.type")
-    norm.scores <- qnorm((1:K)/(1+K))
-    switch(distr.type, 
-          "gh" = gh.funct(norm.scores, p[1], p[2]),
-          "g-and-h" = g_and_h.funct(norm.scores, p[1], p[2]),
-          "SU" = SU.funct(norm.scores, p[1], p[2]),
-          "sinh-arcsinh" = sinh_arcsinh.funct(norm.scores, p[1], p[2]),
-          "SAS" = sinh_arcsinh.funct(norm.scores, p[1], p[2]),
-          NA)
-    }
-    
+{    
   target.gen <- function(par, obj, col, ind, K, data, new.formula, distr.type, trace=FALSE) {
     # target function for "general" object 
     new.data <- data
@@ -75,7 +75,7 @@ function(object, data, factors, distr.type="gh", fast.fit=FALSE, trace=FALSE)
     y <- model.response(mf)  
     obj.class <- class(object)[1]
     if(obj.class  == "glm") {
-      if(as.character(obj$family[1]) == "binomial") y <- y[,1]/rowSums(y)
+      if(as.character(obj$family[1]) == "binomial" & is.matrix(y)) y <- y[,1]/rowSums(y) 
       fit <- try(glm.fit(x, y, family=obj$family, weights=obj$prior.weights))
       fn.value <- if(inherits(fit, "try-error")) NA else deviance(fit)
       }
@@ -85,29 +85,33 @@ function(object, data, factors, distr.type="gh", fast.fit=FALSE, trace=FALSE)
       }
     if(trace) cat("target.fit par, value:", par, ", ", fn.value, "\n")
     fn.value
-    } # end of target.fit
-    
+    } # end of target.fit   
   #---start of smof function body
+  cl <- match.call()
   obj.class <- class(object)[1]   
   if(!(obj.class %in% c("lm", "mlm", "glm", "survreg", "coxph.penal", "coxph"))) 
     stop(gettextf("object class '%s' is not (yet) supported", obj.class), domain=NA)
-  obj.call <- object$call
+  # obj.call <- object$call
   obj.formula <- formula(object)
   if(mode(factors) != "character") stop("'factors' must be a character vector")
   formula.char <- as.character(obj.formula)
   new.LP.char <- paste(formula.char[c(1,3)], collapse=" ")
   ind <- K <- sof.names <- col.f <- NULL
   nf <- length(factors)
+  factors.str <- NULL
   for(j in 1:nf) {
-    factor <- factors[j]
-    f <- data[, factor]
+    f.name <- factors[j]
+    if(grep(f.name, formula.char[3]) != 1)  
+      stop(gettextf("'%s' is not a model component", f.name), domain=NA)
+    f <- data[, f.name]
     if(!is.ordered(f))  
-      stop(gettextf("'%s' is not an ordered factor", factor), domain=NA)
+      stop(gettextf("'%s' is not an ordered factor", f.name), domain=NA)
+    eval(str2expression(paste("factors.str$", f.name, "<- levels(f)", sep="")))
     K <- c(K, length(levels(f)))
     ind <- cbind(ind, match(f, levels(f)))
-    col.factor <-  which(names(data) == factor)
-    sof.name <- paste(factor, "score", sep=".")
-    new.LP.char <- gsub(factor, sof.name, new.LP.char)
+    col.factor <-  which(names(data) == f.name)
+    sof.name <- paste(f.name, "score", sep=".")
+    new.LP.char <- gsub(f.name, sof.name, new.LP.char)
     sof.names <- c(sof.names, sof.name)
     col.f <- c(col.f, col.factor)
     }
@@ -133,14 +137,23 @@ function(object, data, factors, distr.type="gh", fast.fit=FALSE, trace=FALSE)
   scores <- param <- xf <- NULL
   f.scores <- list()
   for(j in 1:nf) {
-      param <- cbind(param, c(opt$par[2*j-1], exp(opt$par[2*j])))
-      scores <- transform.scores(K[j], distr.type, param[,j])
+      param <- rbind(param, c(opt$par[2*j-1], exp(opt$par[2*j])))
+      scores <- transform.scores(K[j], distr.type, param[j,])
       f.scores[[j]] <-  scores
       names(f.scores)[j] <- paste(factors[j], ".score", sep="")
       new.data[, col.f[j]] <- scores[ind[, j]]
       } 
-  dimnames(param)[[2]] <- sof.names    
-  distr <- list(type=distr.type, param=t(param))
+  dimnames(param)[[1]] <- sof.names    
+  dimnames(param)[[2]] <- switch(distr.type, 
+     "SU" = c("gamma", "delta"),
+     "gh" = , "g-and-h" = c("g", "h"),
+     "sinh-arcsinh" = , "SAS" = c("epsilon", "delta"),
+     NULL)
+  distr <- list(type=distr.type, param=param)
   new.obj <- update(object, new.formula, data=new.data) 
-  list(object=new.obj, data=new.data, distr=distr, factors.scores=f.scores)   
+  out <- list(call=cl, new.object=new.obj, new.data=new.data, distr=distr, 
+            factors.scores=f.scores, original.factors=factors.str)   
+  class(out) <- "smof"
+  return(out)          
 }
+

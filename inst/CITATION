@@ -1,0 +1,17 @@
+citHeader("To cite the 'smof' package in publications, use:")
+
+if(!exists("meta") || is.null(meta)) meta <- packageDescription("smof")
+
+bibentry(bibtype ="manual",
+  title = paste("The {R} package \\texttt{smof}: ",
+     "Scoring Methodology for Ordered Factors (version ",
+      meta$Version, ").", sep=""),
+  author = person(given="Adelchi", family="Azzalini"),
+  address = "Universit\\`a degli Studi di Padova, Italia",
+  year    = substr(meta$Date, 1, 4),
+  url     = "https://cran.r-project.org/package=smof",
+         
+textVersion = paste("Azzalini, A. (", substr(meta$Date, 1, 4), "). ",
+  "The R package 'smof': Scoring Methodology for Ordered Factors (version ",  
+   meta$Version, "). ", "URL https://cran.r-project.org/package=sn",  sep="")
+)

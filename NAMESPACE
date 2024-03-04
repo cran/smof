@@ -1,5 +1,19 @@
-export(smof)
 importFrom(stats,  
   qnorm, model.frame,  model.matrix, model.response, formula, logLik,
-  lm, lm.fit, glm, glm.fit, update, deviance, optim)
+  lm, lm.fit, glm, glm.fit, update, deviance, predict, optim)
 # importFrom(survreg, coxph.penal, coxph)
+
+importFrom("grDevices", "dev.interactive", "devAskNewPage")
+importFrom("graphics", "plot.default", "axis", "title")
+importFrom(methods, show)
+
+S3method(print, smof)
+S3method(summary, smof)
+S3method(print, summary.smof)
+S3method(plot, smof)
+S3method(predict, smof)
+
+export(smof, 
+  summary.smof,  predict.smof,
+  print.smof, plot.smof, print.summary.smof
+  )
