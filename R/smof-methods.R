@@ -1,10 +1,10 @@
-
+# methods for smof-v08.R, started 2024-06-04
+#
 summary.smof <- function(object, ...) {
   obj <- object
-  summ <- obj[match(c("call", "distr", "factors.scores", "original.factors"),
+  summ <- obj[match(c("call", "scoring", "factors.scores", "original.factors", "target.value"),
          names(obj), nomatch=0)]
-  # s.new.obj <- summary(obj$new.object)
-  summ <- c(summ, list(new.object=summary(obj$new.object, ...)))
+  summ <- c(summ,  list(new.object=summary(obj$new.object, ...)))   
   class(summ) <- "summary.smof"
   summ
   }
@@ -22,20 +22,37 @@ print.summary.smof <- function(x, ... ) {
   cat("Ordered factor(s) and numeric scores assigned to the levels:\n")
   orig <- obj$original.factors
   for(j in 1:nf)   {
-    u <- obj$factors[[j]]
+    u <- c(obj$factors[[j]])
     names(u) <- orig[[j]]
     K <- length(u)
-    cat("[Factor ", j, "]... " , names(orig[j]), ", with ", K, " levels:\n", sep="") 
+    cat("\n[Factor ", j, "]... " , names(orig[j]), ", with ", K, " levels:\n", sep="") 
     print(u, digits=digits)
     }
-  cat("\n")    
-  cat("Scoring via transformation(s) based on distribution:", obj$distr$type, "\n")
-  cat("Parameters of the transformation(s) by factor:\n")
-  print(obj$distr$param, digits=digits)
-  # for(j in 1:nf)   {
-  #     cat("  ", names(obj$original.factors)[j], ": ", sep="") 
-  #     cat(format(obj$distr$param[j,], digits=digits), "\n")
-  #     } 
+  cat("\n")   
+  score <- obj$scoring 
+  cat("Scores obtained by transformation(s) of type:", score$type, "\n")
+  if(score$type == "distr") cat("Family of distributions:", score$family, "\n")
+  if(score$type == "spline") cat("Spline method:", "monoH.FC", "\n")
+  cat("Value of the target criterion for choosing the transformation(s):", 
+     obj$target.criterion, "\n")
+  
+  param <- obj$scoring$param
+  if(score$type == "distr") { 
+    cat("Parameters of the transformation(s) by factor:\n")
+    print(param, digits=digits)
+    }
+  if(score$type == "spline")  {
+    cat("Splines and parameters of the transformation(s) by factor:\n")
+    for(j in 1:nf) {
+    if(obj$scoring$type == "spline") {
+      knots <- attr(obj$factors[[j]], "knots")
+      cat("knots for factor", names(orig[j]), ":\n")
+      # cat("knots.x:", format(u[1,], digits=digits, "\n")
+      # cat("knots.y:", format(u[2,], digits=digits, "\n")
+      print(knots)
+      }
+    cat("working parameters for", names(param[j]), ":",  format(param[j], digits=digits), "\n")  
+    }}
   if(inherits(obj, "summary.smof"))
     {cat("\nFitted model using factor(s) scores:\n"); print(obj$new.object) } 
   invisible(x)  
@@ -57,7 +74,7 @@ plot.smof <- function(x, which, ...) {
   if(is.character(w1)) w1 <- match(intersect(w1, f.names), f.names)
   if(is.numeric(w1))  w1 <- intersect(w1, 1:nf)
   if(length(w1) > 0) { 
-	ask <- ((nf > 1) && dev.interactive())
+	ask <- ((length(w1) > 1) && interactive())
 	# localTitle <- function(..., col, bg, pch, cex, lty, lwd) title(...)
 	void <- function(x) if(is.null(x)) TRUE else is.na(x)  
 	for(j in w1) {
@@ -69,13 +86,13 @@ plot.smof <- function(x, which, ...) {
 	x.lev <- obj$original.factors[[j]]
 	npt <- length(x.lev)
 	y.lev <- obj$factors.scores[[j]]
-	plot(1:npt, y.lev, xaxt="n", ann=FALSE, ...)
-	axis(side=1, at=1:npt, labels=x.lev)
+	graphics::plot.default(1:npt, y.lev, xaxt="n", ann=FALSE, ...)
+	graphics::axis(side=1, at=1:npt, labels=x.lev)
 	xlab <- if(void(dots$xlab[j])) f.name else dots$xlab[j]
 	ylab <- if(void(dots$ylab[j])) paste("scores of", f.name) else dots$ylab[j]
 	main <- if(void(dots$main[j])) paste("scoring of", f.name) else dots$main[j]
 	sub <- if(void(dots$sub[j])) NULL else dots$sub[j]
-	title(main = main, sub = sub, xlab = xlab, ylab = ylab)
+	graphics::title(main = main, sub = sub, xlab = xlab, ylab = ylab)
 	}
   }
   if(!is.null(w2)) { 
@@ -91,10 +108,11 @@ predict.smof <- function(object, newdata=NULL, ...) {
   if(!inherits(newdata, "data.frame")) stop("'newdata' must be a data.frame")
   new.data <- data <- newdata
   f.str <- object$original.factors 
-  distr <- object$distr
+  nf <- length(f.str)
   f.names <- names(f.str)  
-  # new.data <- data 
-  for(j in 1:length(f.str)) {
+  scoring <- object$scoring
+  param <-  scoring$param 
+  for(j in 1:nf) {
     f.name <-  names(f.str)[j]
     if(is.element(f.name, names(data))) {
       f.lev <- f.str[[j]]
@@ -102,7 +120,11 @@ predict.smof <- function(object, newdata=NULL, ...) {
       new.lev <- levels(data[,col.j]) 
       if(length(setdiff(new.lev, f.lev)) > 0) 
         stop(gettextf("too many levels of factor '%s'", f.name), domain=NA)
-      scores <- transform.scores(length(f.lev), distr$type, distr$param)  
+      scores <- switch(scoring$type,
+        distr = distr.scores(length(f.lev), scoring$family, param[j,]),
+        spline = spline.scores(length(f.lev), "monoH.FC", scoring$in.knots[j], param[[j]]),
+        NULL 
+        )
       ind <- match(data[,col.j], f.lev)  
       new.data[, col.j] <- scores[ind]
       names(new.data)[col.j] <- paste(f.name, ".score", sep="")

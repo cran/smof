@@ -52,7 +52,6 @@ Currently this option operates only for objects which inherits from class
 \code{lm}; specifically, it works for objects originated by a call to 
 \code{lm} or to \code{glm}.
 
-
 With \code{predict.smof}, the outcome of a \code{smof} fit is applied 
 to new data frame which includes ordered factors analogous to those used to 
 compute the \code{smof} transformation. 
@@ -60,14 +59,16 @@ Only the factors of \code{newdata} with the same name as those processed by
 \code{smof} to produce \code{object} are examined. The levels of these
 factors must coincide with or be a subset of those of the original data frame.
 
-There is a difference between  the role played by \code{predict.smof} and  
-the one of \code{predict} methods for other classes. Usually the returned 
-values pertain to the response variable, or to some related entity, 
+Note the difference between the role played by \code{predict.smof} and  
+the one of \code{predict} methods for most other classes. Usually the 
+returned values pertain to the response variable, or to some related entity, 
 while here the outcome refers to explanatory variables.
 }
-
-\value{For \code{summary.smof}, a list. For \code{predict.smof}, a data frame.}
-
+ 
+\value{For \code{summary.smof}, a list of class \code{summary.smof}. 
+  For \code{predict.smof}, a data frame.
+  For \code{plot.smof}, \code{NULL} with graphical side effects. 
+}
 
 \author{Adelchi Azzalini}
 

@@ -1,6 +1,7 @@
 importFrom(stats,  
   qnorm, model.frame,  model.matrix, model.response, formula, logLik,
-  lm, lm.fit, glm, glm.fit, update, deviance, predict, optim)
+  lm, lm.fit, glm, glm.fit, update, deviance, predict, optim,
+  plogis, splinefun, rnorm)
 # importFrom(survreg, coxph.penal, coxph)
 
 importFrom("grDevices", "dev.interactive", "devAskNewPage")
@@ -13,7 +14,7 @@ S3method(print, summary.smof)
 S3method(plot, smof)
 S3method(predict, smof)
 
-export(smof, 
+export(smof, smof_refit,
   summary.smof,  predict.smof,
   print.smof, plot.smof, print.summary.smof
   )

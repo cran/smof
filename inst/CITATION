@@ -13,5 +13,5 @@ bibentry(bibtype ="manual",
          
 textVersion = paste("Azzalini, A. (", substr(meta$Date, 1, 4), "). ",
   "The R package 'smof': Scoring Methodology for Ordered Factors (version ",  
-   meta$Version, "). ", "URL https://cran.r-project.org/package=sn",  sep="")
+   meta$Version, "). ", "URL https://cran.r-project.org/package=smof",  sep="")
 )

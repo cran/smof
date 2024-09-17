@@ -41,6 +41,6 @@ data(esoph)
 contrasts(esoph$agegp, 2) <- contr.poly(6) # optional
 contrasts(esoph$tobgp, 1) <- contr.poly(4) # optional
 obj1 <- glm(cbind(ncases, ncontrols) ~ agegp + tobgp + alcgp, family=binomial(), data=esoph)        
-out0 <- smof(obj1, esoph, "alcgp", distr.type="gh")
+out0 <- smof(obj1, esoph, "alcgp")
 print(summary(out0$object)) 
 }
