@@ -4,7 +4,8 @@
 \title{Re-fitting an existing \code{smof} model for improved optimization}
 
 \description{Given a model fitted by \code{smof}, this function helps 
-to improve the achieved fitting level by launching new numerical optimizations 
+to improve the achieved fitting level (represented by the value of the target
+criterion) by launching new numerical optimizations 
 of the underlying target function.
 The search process is initiated with parameters randomly chosen
 in the vicinity of those of the \code{object} provided.}
@@ -27,7 +28,7 @@ smof_refit(object, searches = 10, sd = 1, opt.control=list(), verbose = 1)
     maximization one.}         
   \item{verbose}{an integer regulating the amount of messages displayed;
     it can be 0 (no messages), 1 (default value) or larger than 1 for 
-    a very verbose outcome.}
+    a more verbose outcome.}
 }
 
 \details{
@@ -37,14 +38,15 @@ regulating the numeric
 scores are involved. This situation may be flagged by the message
 \preformatted{Notice. Non-zero error code returned by optim:...}
 
-It is expected that the main usage of this function is to 
-improve the fitting of models produced with \code{scoring$type="spline"},
-since this option generates model with more parameters 
-than an equivalent  model with \code{scoring$type="distr"}.
+In \sQuote{regular} situations, it is expected that the main usage of this 
+function is to  improve the fitting of models produced with 
+\code{scoring$type="spline"}, since this option typically generates a model 
+with more parameters than an equivalent model with \code{scoring$type="distr"},
+hence generally more problematic at the optimization step. 
 
 Since the initial values of each optimization step are randomly generated, 
-one may want to make a preliminary call to \code{set.seed}.
-if replicability of the results is required.
+it is advisable to make a preliminary call to \code{set.seed}, to ensure
+replicability of the results.
 }
  
 \value{an object of class \code{smof}}
@@ -58,7 +60,7 @@ data(esoph)
 fit <- glm(cbind(ncases, ncontrols) ~ agegp + tobgp + alcgp, family=binomial(), data=esoph)
 smof2 <- smof(fit, esoph, c("agegp", "alcgp"), 
              scoring=list(type="spline", in.knots=c(2,1)), original=TRUE)
-set.seed(101)             
+set.seed(1)             
 smof2a <- smof_refit(smof2, searches=4, opt.control=list(maxit=50))
 # smof2b <- smof_refit(smof2a)  # further improvement can be attempted
 }

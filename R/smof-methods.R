@@ -1,9 +1,13 @@
-# methods for smof-v08.R, started 2024-06-04
+#-------------------------------
+#  file smof/R/smof-methods.R   
+#  This file is a component of the R package 'smof' 
+#  copyright (C) 2023-2024 Adelchi Azzalini
+#-------------------------------
 #
 summary.smof <- function(object, ...) {
   obj <- object
-  summ <- obj[match(c("call", "scoring", "factors.scores", "original.factors", "target.value"),
-         names(obj), nomatch=0)]
+  summ <- obj[match(c("call", "scoring", "factors.scores", "original.factors", 
+             "target.criterion"), names(obj), nomatch=0)]
   summ <- c(summ,  list(new.object=summary(obj$new.object, ...)))   
   class(summ) <- "summary.smof"
   summ
@@ -29,29 +33,28 @@ print.summary.smof <- function(x, ... ) {
     print(u, digits=digits)
     }
   cat("\n")   
-  score <- obj$scoring 
-  cat("Scores obtained by transformation(s) of type:", score$type, "\n")
-  if(score$type == "distr") cat("Family of distributions:", score$family, "\n")
-  if(score$type == "spline") cat("Spline method:", "monoH.FC", "\n")
-  cat("Value of the target criterion for choosing the transformation(s):", 
-     obj$target.criterion, "\n")
-  
-  param <- obj$scoring$param
-  if(score$type == "distr") { 
+  obscor <- obj$scoring 
+  cat("Scores obtained by transformation(s) of type:", obscor$type, "\n")
+  if(obscor$type == "distr") cat("Family of distributions:", obscor$family, "\n")
+  if(obscor$type == "spline") cat("Spline method:", "monoH.FC", "\n")
+  cat("Target criterion for selection of the transformation(s):", 
+     format(obj$target.criterion, nsmall=2), "\n")
+  param <- obscor$param
+  if(obscor$type == "distr") { 
     cat("Parameters of the transformation(s) by factor:\n")
     print(param, digits=digits)
     }
-  if(score$type == "spline")  {
-    cat("Splines and parameters of the transformation(s) by factor:\n")
+  if(obscor$type == "spline")  {
+    cat("Splines and parameters of the transformation(s) by factor follow.\n")
     for(j in 1:nf) {
-    if(obj$scoring$type == "spline") {
+      #if(obj$scoring$type == "spline") {
       knots <- attr(obj$factors[[j]], "knots")
-      cat("knots for factor", names(orig[j]), ":\n")
-      # cat("knots.x:", format(u[1,], digits=digits, "\n")
-      # cat("knots.y:", format(u[2,], digits=digits, "\n")
+      cat("\nKnots for factor", names(param[j]), ":\n")
+      # cat("knots.x:", format(u[1,], digits=digits), "\n")
+      # cat("knots.y:", format(u[2,], digits=digits), "\n")
       print(knots)
-      }
-    cat("working parameters for", names(param[j]), ":",  format(param[j], digits=digits), "\n")  
+      #}
+    cat("working parameters:", format(param[j], digits=digits), "\n")  
     }}
   if(inherits(obj, "summary.smof"))
     {cat("\nFitted model using factor(s) scores:\n"); print(obj$new.object) } 
@@ -132,4 +135,21 @@ predict.smof <- function(object, newdata=NULL, ...) {
       warning(gettextf("there is no factor '%s' in 'data'", f.name), domain=NA)
   }
   new.data    
+}
+
+anova.smof <- function(object, ...) anova(object$new.object)
+
+coef.smof <- function(object, complete=FALSE, ...) {
+  if(!inherits(object, "smof")) stop("object of wrong class")
+  par <- object$scoring$param
+  if(object$scoring$type == "distr") { 
+    out <- c(t(par))
+    names(out) <- c(t(outer(dimnames(par)[[1]], dimnames(par)[[2]] , FUN=paste, sep=".")))
+    } else  
+    out <- unlist(par)
+  if(complete) {
+     out2 <- coef(object$new.object, ...)
+     out <- c(out, out2)  
+     }
+  out
 }

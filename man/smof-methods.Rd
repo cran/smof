@@ -4,6 +4,8 @@
 \alias{predict.smof}
 \alias{summary.smof}
 \alias{print.summary.smof}
+\alias{coef.smof}
+\alias{anova.smof}
 \title{Methods for \code{smof} objects}
 
 \description{The list of methods that apply to \code{smof} objects}
@@ -14,6 +16,8 @@
 \method{summary}{smof}(object,  ...)
 \method{print}{summary.smof}(x, ...)
 \method{predict}{smof}(object, newdata, ...)
+\method{coef}{smof}(object, complete=FALSE, ...)
+\method{anova}{smof}(object, ...)
 }
 
 \arguments{
@@ -25,7 +29,10 @@
   \item{newdata}{a data frame which includes ordered factors with the same names
     and levels as those in the data frame used to produce \code{object};
     see \sQuote{Details} for additional information.}
- \item{...}{arguments passsed through to other methods.}   
+  \item{complete}{logical value (default: \code{FALSE}); when \code{TRUE}, the
+    coefficients of the fitted model are included after the parameters of the 
+    scoring transformation.}
+  \item{...}{arguments passed through to other methods. For \code{anova} it is ignored.}   
 }
 
 \details{

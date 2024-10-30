@@ -4,7 +4,7 @@
 #  copyright (C) 2023-2024 Adelchi Azzalini
 #-------------------------------
 smof <- function(object, data, factors, scoring, fast.fit=FALSE, original=FALSE,
-   opt.control=list(), trace=FALSE)
+   f.tail=".score", opt.control=list(), verbose=1)
 {    
   target.gen <- function(par, obj, col, ind, K, data, new.formula, scoring, trace=FALSE) {
     # target function for "general" object 
@@ -15,7 +15,7 @@ smof <- function(object, data, factors, scoring, fast.fit=FALSE, original=FALSE,
         scores <- distr.scores(K[j], scoring$family, param.j)
         if(any(is.infinite(scores) | is.na(scores))) {
           fn.value <- Inf
-          if(trace) cat("target.gen par, value:", par, ", ", fn.value, "\n")
+          if(trace) cat("target.gen, work.par=", par, ", value=", fn.value, "\n")
           return(fn.value)
           }  
         new.data[, col[j]] <- scores[ind[,j]]
@@ -31,16 +31,16 @@ smof <- function(object, data, factors, scoring, fast.fit=FALSE, original=FALSE,
         scores <- spline.scores(K[j], scoring$method, scoring$in.knots[j], param.j)
         if(any(is.infinite(scores) | is.na(scores))) {
           fn.value <- Inf
-          if(trace) cat("target.gen par, value:", par, ", ", fn.value, "\n")
+          if(trace) cat("target.gen: work.par=", par, ",  value=", fn.value, "\n")
           return(fn.value)
         }  
       new.data[, col[j]] <- scores[ind[,j]]
       }}
-    else stop("unknown scoring type")  }
+    else stop("unknown scoring type")  } 
     new.obj <- try(update(object, new.formula, data=new.data))
     if(inherits(new.obj, "try-error")) {
       value <- NA
-      if(trace) cat("target.gen par, value:", par, ", ", fn.value, "\n")
+      if(trace) cat("target.gen: work.par=", par, ", value=", fn.value, "\n")
       return(value)
       }
     fn.value <- switch(class(new.obj)[1],
@@ -54,8 +54,9 @@ smof <- function(object, data, factors, scoring, fast.fit=FALSE, original=FALSE,
       "survreg" = -logLik(new.obj),
       "coxph" = -logLik(new.obj),
       "coxph.penal" = -logLik(new.obj),
+      "gnm" = deviance(new.obj),
       NA)
-    if(trace) cat("target.gen par, value:", par, ", ", fn.value, "\n")
+    if(trace) cat("target.gen: work.par=", par, ", value=", fn.value, "\n")
     fn.value  
     }  #  # end of target.gen
     
@@ -66,7 +67,7 @@ smof <- function(object, data, factors, scoring, fast.fit=FALSE, original=FALSE,
       scores <- distr.scores(K[j], family, param.j)
       if(any(is.infinite(scores) | is.na(scores))) {
         fn.value <- Inf
-        if(trace) cat("target.fit par, value:", par, ", ", fn.value, "\n")
+        if(trace) cat("target.fit: work.par=", par, ", value=", fn.value, "\n")
         return(fn.value)
         }  
       x[, col[j]] <- scores[ind[,j]]
@@ -83,25 +84,29 @@ smof <- function(object, data, factors, scoring, fast.fit=FALSE, original=FALSE,
       fit <- try(lm.fit(x, y))
       fn.value <- if(inherits(fit, "try-error")) NA else sum(fit$residuals^2)/fit$df.residual
       }
-    if(trace) cat("target.fit par, value:", par, ", ", fn.value, "\n")
+    if(trace) cat("target.fit: work.par=", par, ", value=", fn.value, "\n")
     fn.value
     } # end of target.fit   
   #---start of smof function body
   cl <- match.call()
+  verbose <- as.integer(verbose)
+  trace <- (verbose > 1)
+  if(!inherits(data, "data.frame")) stop("'data' must be a data.frame")
   obj.class <- class(object)[1]   
-  if(!(obj.class %in% c("lm", "mlm", "glm", "survreg", "coxph.penal", "coxph"))) 
+  if(!(obj.class %in% c("lm", "mlm", "glm", "survreg", "coxph.penal", "coxph", "gnm"))) 
     stop(gettextf("object class '%s' is not (yet) supported", obj.class), domain=NA)
   # obj.call <- object$call
   obj.formula <- formula(object)
   if(mode(factors) != "character") stop("'factors' must be a character vector")
-  formula.char <- as.character(obj.formula)
-  new.LP.char <- paste(formula.char[c(1,3)], collapse=" ")
+  if(any(duplicated(factors))) stop("duplicated factors")
+  # formula.char <- deparse(obj.formula) # as.character(obj.formula)
+  new.rhs <- rhs <- deparse(obj.formula[[3]]) # paste(formula.char[c(1,3)], collapse=" ")
   ind <- K <- sof.names <- col.f <- NULL
   nf <- length(factors)
   factors.str <- NULL
   for(j in 1:nf) {
-    f.name <- factors[j]
-    if(grep(f.name, formula.char[3]) != 1)  
+    f.name <- factors[j] # factors[decrease[j]]
+    if(grep(f.name, rhs) != 1)  
       stop(gettextf("'%s' is not a model component", f.name), domain=NA)
     f <- data[, f.name]
     if(!is.ordered(f))  
@@ -112,12 +117,23 @@ smof <- function(object, data, factors, scoring, fast.fit=FALSE, original=FALSE,
     K <- c(K, length(levels(f)))
     ind <- cbind(ind, match(f, levels(f)))
     col.factor <-  which(names(data) == f.name)
-    sof.name <- paste(f.name, "score", sep=".")
-    new.LP.char <- gsub(f.name, sof.name, new.LP.char)
+    sof.name <- make.names(paste(f.name, f.tail, sep=""))
+    # new.rhs <- gsub(f.name, sof.name, new.rhs)
+    # pattern <- paste(f.name, "{1}[\ ,+-:(*)]|", f.name, "{1}$", sep= "")
+    pattern <- paste(f.name, "{1}[^._A-Za-z0-9]|", f.name, "{1}$", sep= "")
+    f.x <- c(gregexpr(pattern, new.rhs)[[1]])
+    nx <- length(f.x)
+    for(i in 1:nx) {
+      leftside <- if(f.x[i]==1) NULL else substr(new.rhs, 1,  f.x[i]-1)
+      rightside <- substr(new.rhs, f.x[i] + nchar(f.name), nchar(new.rhs))
+      new.rhs <- paste(leftside, sof.name, rightside, sep="")
+      if(i < nx) f.x[(i+1):nx] <- f.x[(i+1):nx] + nchar(f.tail)
+      }
     sof.names <- c(sof.names, sof.name)
     col.f <- c(col.f, col.factor)
     }
-  new.formula <- formula(paste(c(formula.char[2], new.LP.char), collapse= " "))    
+  new.formula <- formula(paste(deparse(obj.formula[[2]]), deparse(obj.formula[[1]]),
+       new.rhs), collapse= " ")
   new.data <- data
   for(j in 1:nf) {
     new.data[, col.f[j]] <- 0
@@ -141,7 +157,7 @@ smof <- function(object, data, factors, scoring, fast.fit=FALSE, original=FALSE,
     }  
   else 
     par <- if(stype == "distr") { 
-                  tmp <- matrix(scoring$param, nf, 2)
+                  tmp <- matrix(scoring$param, nf, 2) # necessary?
                   tmp[,2] <- log(pmax(tmp[,2], 1e-12))
                   c(t(tmp))
            }  else unlist(scoring$param)
@@ -151,15 +167,16 @@ smof <- function(object, data, factors, scoring, fast.fit=FALSE, original=FALSE,
     x <- model.matrix(new.formula, new.data)
     col.x <- NULL
     for(j in 1:nf) col.x <- c(col.x, which(dimnames(x)[[2]] == sof.names[j]))
-    opt <- optim(par, target.fit, obj=object, col=col.x, ind=ind, K=K, x=x,
+    opt <- optim(par, fn=target.fit, method="Nelder-Mead", obj=object, 
+                 col=col.x, ind=ind, K=K, x=x,
                  scoring=scoring, trace=trace, control=opt.control)     
     } else 
-    opt <- optim(par, target.gen, obj=object, col=col.f, ind=ind, K=K, data=new.data, 
-          new.formula=new.formula, scoring=scoring, trace=trace, control=opt.control) 
-  if(opt$convergence != 0)              
-   message("Non-zero error code returned by optim: ", opt$convergence, 
-    ". Consider using opt.control or function smof_refit.")
-    # "consider restarting optimization, possibly using function smof_refit"))             
+    opt <- optim(par, fn=target.gen, method="Nelder-Mead", obj=object, 
+             col=col.f, ind=ind, K=K, data=new.data, new.formula=new.formula,
+             scoring=scoring, trace=trace, control=opt.control) 
+  if(opt$convergence != 0 & (verbose > 0))              
+    message("Non-zero error code returned by optim: ", opt$convergence, 
+            ". Consider using opt.control or function smof_refit.")          
   if(trace) {cat("min optim value:", format(opt$value), "\n")  
              cat("optim$par:", format(opt$par), "\n")  }            
   scores <- param <- xf <- NULL
@@ -169,7 +186,6 @@ smof <- function(object, data, factors, scoring, fast.fit=FALSE, original=FALSE,
   param <- knots <- NULL
   for(j in 1:nf) {
     if(stype == "distr") {
-      # browser()
       param <- rbind(param, c(opt$par[2*j-1], exp(opt$par[2*j])))
       scores <- distr.scores(K[j], scoring$family, param[j,]) 
       } 
@@ -180,7 +196,7 @@ smof <- function(object, data, factors, scoring, fast.fit=FALSE, original=FALSE,
       scores <- spline.scores(K[j], scoring$method, scoring$in.knots[j], param[[j]], knots=TRUE) 
       }
       f.scores[[j]] <-  scores
-      names(f.scores)[j] <- paste(factors[j], ".score", sep="")
+      names(f.scores)[j] <- paste(factors[j], f.tail, sep="")
       new.data[, col.f[j]] <- scores[ind[, j]]
       } 
   if(stype == "distr") {
@@ -218,7 +234,7 @@ qTnorm <- function(p, family, param) {
   par <- param
   if(par[2] < 0) stop("(param[2] < 0")
   if(par[2] == 0 & family %in% c("SU", "sinh-arcsinh")) 
-        stop("(param[2]=0 not compatible with distribution family")
+        stop("(param[2]=0 not compatible with family of distributions")
   switch(family, 
         "gh" = gh.funct(norm.scores, par[1], par[2]),
         "g-and-h" = g_and_h.funct(norm.scores, par[1], par[2]),
@@ -250,34 +266,48 @@ spline.scores <- function(K, method, in.knots, param, knots=FALSE) {
 smof_refit <- function(object, searches=10, sd=1, opt.control=list(), verbose=1) 
 {
   if(!inherits(object, "smof")) stop("object of wrong class")
-  new.scoring <- object$scoring
-  # if(new.scoring$type != "spline") stop("scoring type must be 'spline'")
-  value.best <- object$opt$value
-  par.best <- object$opt$par
-  object.best <- object
+  best.object <- object
+  best.value <- object$target.criterion
+  best.par <- object$scoring$param
   new.obj <- object$new.object
+  new.scoring <- object$scoring
+  nf <- length(object$factors.scores)
+  searches <- as.integer(searches)
+  if(searches < 1) stop("meaningless 'searches'")
   improve <- 0
-  if(verbose > 0) {
-    cat("initial target value:", format(value.best), "\n")
-    cat("initial par vector:", format(par.best), "\n")
-    }  
-  for(j in 1:searches) {  
-    if(verbose > 0) cat("search number:", j, "\n")
-    new.scoring$param <- par.best + rnorm(length(par.best), 0, sd)
-    new.fit <- smof(object$original.object, data=object$original.object$data, 
+  if(verbose > 0) 
+    cat("initial target value:", format(best.value, nsmall=2), "\n")
+  new.par <- best.par
+  for(search in 1:searches) {  
+    if(verbose > 0) cat(">> search number:", search, "\n")
+    if(object$scoring$type == "distr") {
+       new.par[,1] <- best.par[,1] + rnorm(nf, 0, sd)
+       new.par[,2] <- best.par[,2] * exp(rnorm(nf, 0, sd) - 1)
+       }  
+    if(object$scoring$type == "spline") 
+      for(j in 1:nf) new.par[[j]] <- new.par[[j]] + rnorm(length(new.par[[j]]), 0, sd)
+    new.scoring$param  <- new.par 
+    if(verbose > 0) cat("param vector:", format(new.scoring$param), "\n")   
+    new.fit <- try(smof(object$original.object, data=object$original.object$data, 
                   factors=names(object$original.factors), scoring=new.scoring, 
-                  opt.control=opt.control, original=TRUE, trace=(verbose>1))
-    if(verbose > 0) { 
-      cat("target value:", format(new.fit$opt$value), "\n")
-      cat("par vector:", format(new.fit$opt$par), "\n")
-      }                
-    if(new.fit$opt$value < value.best) {
-      value.best <- new.fit$opt$value
-      par.best <- new.fit$opt$par
-      object.best <- new.fit
+                  opt.control=opt.control, original=TRUE, verbose=(verbose-1)))
+    if(inherits(new.fit, "try-error")) 
+       {if(verbose > 0) cat("Problems! Skip current search.\n");  next}
+    new.value <- new.fit$target.criterion        
+    if(verbose > 0) 
+      cat("target value:", format(new.value, nsmall=2), "\n")
+    if(new.fit$opt$value < best.value) {
+      best.object <- new.fit
+      best.value <-  new.value
+      best.par <-  best.object$scoring$param
       improve <- improve + 1
-      if(verbose > 0) cat("* new best value *\n")
+      if(verbose > 0) cat("** new best value **\n")
       }
     }  
-  invisible(object.best)  
+  if(verbose > 0) {
+    if(improve == 0) cat("No improvement of the target criterion\n")
+    if(improve > 0) cat("Target criterion has improved", improve, "time(s).",
+      "Best target value is now:", format(best.value, nsmall=2), "\n")
+    }  
+  invisible(best.object)  
   }     

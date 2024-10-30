@@ -3,16 +3,16 @@
 
 \title{Scoring Methodology for Ordered Factors}
 
-\description{Starting from an object representing a fitted model whose linear
-  predictor includes some ordered factor(s) among the explanatory variables, a
-  new model is constructed where each named factor is replaced by a single
+\description{Starting from an object representing a fitted model whose (non-)linear
+  predictor includes some ordered factor(s) among the explanatory variables, 
+  a new model is constructed where each named factor is replaced by a single
   numeric score, suitably chosen so that the new variable produces a data
   fit comparable with the standard methodology based on a set of polynomial
   contrasts. 
 }
 \usage{
 smof(object, data, factors, scoring, fast.fit = FALSE, original = FALSE,
-      opt.control=list(), trace = FALSE)
+       f.tail=".score", opt.control=list(), verbose = 1)
 }
 \arguments{
   \item{object}{an object produced by a fitting function; see \sQuote{Details}
@@ -20,7 +20,7 @@ smof(object, data, factors, scoring, fast.fit = FALSE, original = FALSE,
   \item{data}{the data frame used for producing \code{object}.}
   \item{factors}{a character vector with the names of the ordered factors of 
     \code{data} which must be converted to numeric scores.}
-  \item{scoring}{a list which selects the type of scoring technques and 
+  \item{scoring}{a list which selects the type of scoring techniques and 
     related ingredients.
     Its key component is the character string \code{scoring$type} with possible
     values \code{"distr"} and \code{"spline"}; the other components of the
@@ -33,12 +33,16 @@ smof(object, data, factors, scoring, fast.fit = FALSE, original = FALSE,
     in the \sQuote{Details} below.}
   \item{original}{a logical value (default value: \code{FALSE}) indicating
     whether the original \code{object} must be included in the returned object.} 
+  \item{f.tail}{a character string representing the suffix to be added to
+    each factor name when its numeric score variable is constructed (default
+    value: \code{".score"}). It may be suitably adjusted in case the supplied 
+    string leads to an invalid variable name.}
   \item{opt.control}{a list passed to \code{optim} as its \code{control}
     argument. It must not be used to turn the minimization problem into a
     maximization one.}   
-  \item{trace}{a logical value (default value: \code{FALSE}) indicating 
-    whether details of the iterative procedure for parameter estimation must 
-    be printed at each iteration.}   
+  \item{verbose}{an integer regulating the amount of messages displayed;
+    it can be 0 (no messages), 1 (default value) or larger than 1 for 
+    a more verbose outcome.}   
 }
 \details{
 In its original formulation,
@@ -85,7 +89,7 @@ specified in \code{scoring$family} are as follows:
 where either string name can be used when two of them are indicated. 
 All these families involve two parameters for shape regulation; location and 
 scale parameters are not considered, because irrelevant for our purposes.
-Of the two shape paramters, the first one regulates asymmetry and can take
+Of the two shape parameters, the first one regulates asymmetry and can take
 any value, while the second one regulates tail thickness and must be positive.
 In each case, the adopted parameterization is the \sQuote{standard} one,
 but explicit specifications are provided in the reference below.  
@@ -119,7 +123,8 @@ listed along the corresponding target criteria:
    glm          \tab glm (stats)        \tab deviance \cr
    survreg      \tab survreg (survival) \tab \eqn{-}loglikelihood \cr 
    coxph        \tab coxph (survival)   \tab \eqn{-}loglikelihood \cr
-   coxph.penal  \tab coxph (survival)   \tab \eqn{-}loglikelihood 
+   coxph.penal  \tab coxph (survival)   \tab \eqn{-}loglikelihood \cr
+   gnm          \tab gnm (gnm)          \tab deviance
 } % end tabular
 For an object of class \code{mlm}, the target function is formed by summing
 terms where the contribution  from the \eqn{j}-th response variable is
@@ -139,8 +144,8 @@ This situation may be flagged by the message
 \preformatted{Non-zero error code returned by optim:...}
 In these circumstances, one direction for improvement is to make use of
 the argument \code{opt.control} for better tuning the working of \code{optim}. 
-In more problematic cases, the axiliary function \code{smof_refit} is
-provided to improve upon an intial fitting.
+In more problematic cases, the auxiliary function \code{smof_refit} is
+provided to improve upon an initial fitting.
 
 The rest of this section is slightly of more technical nature, 
 and it may be not of interest to the casual user, especially if
@@ -158,10 +163,15 @@ by the numeric variable \code{ordfac.score} both
 in the linear predictor of \code{object} and in the \code{data} frame.
 A call to \code{update} using the modified linear predictor and data delivers
 a new fitting, with attached a value of the  target criterion.
-An interative optimization process the target criterion leads to 
+An iterative optimization process of the target criterion leads to 
 the estimated parameters of \code{scoring$family}  with a corresponding 
 fitted model.
 
+If the component \code{scoring$param} is not \code{NULL}, it will be used for
+parameter initialization in the parameter search process. In this case,
+if $\code{scoring$type="distr"}, the even ordered components of \code{scoring$param} 
+must be positive, since they represent tail-weight parameters.
+If $\code{scoring$type="distr"}, they must be a vector of length \code{2*in.knots}.
 
 There are in fact two variants of the procedure. 
 What has been just described refers to the more \sQuote{general} variant form.
@@ -315,9 +325,9 @@ print(summary(fit1))
 smof1 <- smof(fit1, esoph, "alcgp")
 # to select the Johnson's S_U family of distributions, write instead:
 # smof1 <- smof(fit1, esoph, "alcgp", scoring=list(type="distr", family="SU"))
-print(smof1, type="b", pch=20, col=4)
+print(smof1)
 print(summary(smof1))
-plot(smof1)
+plot(smof1, type="b", pch=20, col=4)
 #
 # Example 2 , reconstructs Tables 3 and 4 (first part) of the reference
 if(require(ggplot2, quietly=TRUE)) {
