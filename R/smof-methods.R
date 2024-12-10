@@ -5,10 +5,9 @@
 #-------------------------------
 #
 summary.smof <- function(object, ...) {
-  obj <- object
-  summ <- obj[match(c("call", "scoring", "factors.scores", "original.factors", 
-             "target.criterion"), names(obj), nomatch=0)]
-  summ <- c(summ,  list(new.object=summary(obj$new.object, ...)))   
+  summ <- object[match(c("call", "scoring", "factors.scores", "original.factors", 
+             "target.value"), names(object), nomatch=0)]
+  summ <- c(summ,  list(new.object=summary(object$new.object, ...)))   
   class(summ) <- "summary.smof"
   summ
   }
@@ -22,23 +21,23 @@ print.summary.smof <- function(x, ... ) {
   print(obj$new.object$call)
   cat("\n")
   nf <- length(obj$factors)
-  cat("Number of ordered factors processed by 'smof':", nf, "\n")
-  cat("Ordered factor(s) and numeric scores assigned to the levels:\n")
+  cat("Number of ordered factors processed:", nf, "\n")
+  # cat("Ordered factor(s) and numeric scores assigned to the levels:\n")
   orig <- obj$original.factors
   for(j in 1:nf)   {
     u <- c(obj$factors[[j]])
     names(u) <- orig[[j]]
     K <- length(u)
     cat("\n[Factor ", j, "]... " , names(orig[j]), ", with ", K, " levels:\n", sep="") 
-    print(u, digits=digits)
+    print(rbind("score"= u), digits=digits)
     }
   cat("\n")   
   obscor <- obj$scoring 
   cat("Scores obtained by transformation(s) of type:", obscor$type, "\n")
   if(obscor$type == "distr") cat("Family of distributions:", obscor$family, "\n")
   if(obscor$type == "spline") cat("Spline method:", "monoH.FC", "\n")
-  cat("Target criterion for selection of the transformation(s):", 
-     format(obj$target.criterion, nsmall=2), "\n")
+  cat("Value of target criterion for selecting the transformation(s):", 
+     format(obj$target.value, nsmall=2), "\n")
   param <- obscor$param
   if(obscor$type == "distr") { 
     cat("Parameters of the transformation(s) by factor:\n")
@@ -54,7 +53,7 @@ print.summary.smof <- function(x, ... ) {
       # cat("knots.y:", format(u[2,], digits=digits), "\n")
       print(knots)
       #}
-    cat("working parameters:", format(param[j], digits=digits), "\n")  
+    cat("work parameters:", format(param[j], digits=digits), "\n")  
     }}
   if(inherits(obj, "summary.smof"))
     {cat("\nFitted model using factor(s) scores:\n"); print(obj$new.object) } 
@@ -91,9 +90,9 @@ plot.smof <- function(x, which, ...) {
 	y.lev <- obj$factors.scores[[j]]
 	graphics::plot.default(1:npt, y.lev, xaxt="n", ann=FALSE, ...)
 	graphics::axis(side=1, at=1:npt, labels=x.lev)
-	xlab <- if(void(dots$xlab[j])) f.name else dots$xlab[j]
-	ylab <- if(void(dots$ylab[j])) paste("scores of", f.name) else dots$ylab[j]
-	main <- if(void(dots$main[j])) paste("scoring of", f.name) else dots$main[j]
+	xlab <- if(void(dots$xlab[j])) paste(f.name, "levels") else dots$xlab[j]
+	ylab <- if(void(dots$ylab[j])) paste(f.name, "scores") else dots$ylab[j]
+	main <- if(void(dots$main[j])) paste("factor:", f.name) else dots$main[j]
 	sub <- if(void(dots$sub[j])) NULL else dots$sub[j]
 	graphics::title(main = main, sub = sub, xlab = xlab, ylab = ylab)
 	}

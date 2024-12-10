@@ -12,7 +12,7 @@
 }
 \usage{
 smof(object, data, factors, scoring, fast.fit = FALSE, original = FALSE,
-       f.tail=".score", opt.control=list(), verbose = 1)
+       f.tail=".score", opt.method="Nelder-Mead", opt.control=list(), verbose = 0)
 }
 \arguments{
   \item{object}{an object produced by a fitting function; see \sQuote{Details}
@@ -25,7 +25,7 @@ smof(object, data, factors, scoring, fast.fit = FALSE, original = FALSE,
     Its key component is the character string \code{scoring$type} with possible
     values \code{"distr"} and \code{"spline"}; the other components of the
     list depend on this value, and are described in the  \sQuote{Details}.
-    If \code{scoring} is missing, the default value 
+    If the argument \code{scoring} is missing, the default value 
     \code{list(type="distr", family="gh")} is used.}
   \item{fast.fit}{a logical value (default value: \code{FALSE}) indicating 
     whether a fast-fitting procedure must be used. 
@@ -34,23 +34,33 @@ smof(object, data, factors, scoring, fast.fit = FALSE, original = FALSE,
   \item{original}{a logical value (default value: \code{FALSE}) indicating
     whether the original \code{object} must be included in the returned object.} 
   \item{f.tail}{a character string representing the suffix to be added to
-    each factor name when its numeric score variable is constructed (default
-    value: \code{".score"}). It may be suitably adjusted in case the supplied 
-    string leads to an invalid variable name.}
-  \item{opt.control}{a list passed to \code{optim} as its \code{control}
-    argument. It must not be used to turn the minimization problem into a
+    each factor name when the coresponding numeric variable is constructed
+    (default value: \code{".score"}). It may be suitably adjusted in case the 
+    supplied string leads to an invalid variable name.}
+ \item{opt.method}{a character string with the name of the numerical 
+    optimization method, among a set of options. The basic set comprises 
+    \code{"Nelder-Mead"}  (default value), \code{"BFGS"}, \code{"nlminb"},
+    all accessible from the \pkg{stats} package;
+    the first two choices generate a call to the function \code{optim},
+    while \code{"nlminb"} produces a call to \code{nlminb}.
+    In addition, if the package \pkg{nloptr} is installed on the local system,
+    the set of options is enlarged with \code{"newuoa"}, \code{"bobyqa"}, 
+    \code{"cobyla"}, \code{"sbplx"}. 
+    }    
+  \item{opt.control}{a list passed to the optimization function selected by
+    \code{opt.method} as its \code{control} argument.
+    It must not be used to turn the minimization problem into a
     maximization one.}   
-  \item{verbose}{an integer regulating the amount of messages displayed;
-    it can be 0 (no messages), 1 (default value) or larger than 1 for 
-    a more verbose outcome.}   
+  \item{verbose}{a non-negative integer regulating the amount of messages 
+    displayed; it can be 0 (no messages unless necessary, default value), 
+    1 (minimal messaging)  or larger than 1 for a more verbose outcome.}   
 }
 \details{
-In its original formulation,
-function \code{smof} implements  the methodology proposed by 
-Azzalini (2023), briefly summarized in the \sQuote{Background} section.
+In its original formulation, \code{smof} implements the methodology proposed 
+by Azzalini (2023), briefly summarized in the \sQuote{Background} section.
 It is recommended to read at least that section in case the referenced paper 
 is not examined. The published paper has open access.  
-Later on, in version 1.2.0 of \pkg{smof}, a variant methodology has been 
+Later on, since version 1.2.0 of \pkg{smof}, a variant methodology has been 
 included, based on the use of splines instead of quantile functions,
 presented in Azzalini (2024).
 
@@ -83,7 +93,7 @@ specified in \code{scoring$family} are as follows:
 \tabular{lll}{
   Johnson's \eqn{S_U}            \tab \eqn{\quad}{  } \tab \code{"SU"} \cr
   Tukey's \emph{g}-and-\emph{h}  \tab \tab \code{"gh"}, \code{"g-and-h"} \cr
-  Jones and Pewsey's \emph{sinh-arcsinh}
+  Jones and Pewsey's \eqn{sinh-arcsinh}
                             \tab \tab \code{"sinh-arcsinh"}, \code{"SAS"}  
 }% end tabular
 where either string name can be used when two of them are indicated. 
@@ -95,8 +105,26 @@ In each case, the adopted parameterization is the \sQuote{standard} one,
 but explicit specifications are provided in the reference below.  
 The same \code{family} is employed for all the components of \code{factors}.
 
-If \code{scoring$type="spline"}, the numeric scores are obtained via a
-monotonic spline function. Specifically, the scores are generated using
+Since version 1.2.2 of the package, the selected quantiles are, in the 
+final stage, linearly mapped to values in the interval \eqn{(1,K)}, 
+if \eqn{K} denotes the number of levels of the factor under consideration.
+This choice is simplifies comparison among different choices of scoring,
+in a number of ways: first of all, it highlights the difference from the
+traditional scores \eqn{1, 2, \dots, K}; next, it facilitates comparison  
+among alternative choice of \code{scorinf$family}; finally, it it facilitates 
+comparison with the scoring produced using spline, to be described shortly,
+whose scores range between \eqn{1} and \eqn{K}.  
+An implication of the present choice of mapping quantiles is that the scores
+produced now in the example code below differs numerically from the scores
+displayed in the examples of Azzalini (2023), but the difference is only 
+superficial, since the relative spacings between the old and the
+new scores are unchanged, and this is the crucial point. 
+However, in case one wants to recover the old type  of outcome, 
+this is  possible by including the component \code{scoring} in
+the call to \code{smof} and setting \code{scoring$mapping="none"}.
+
+If \code{scoring$type="spline"}, the numeric scores are obtained using
+monotonic spline functions. Specifically, the scores are generated using
 \code{splinefun} with \code{method="monoH.FC"}. Since currently this is 
 the only admissible form of spline, it does not need to be specified.
 What must be specified is \code{scoring$in.knots}, the number of internal knots
@@ -104,13 +132,15 @@ between the fixed extremal knots \code{1} and \code{K}, if \code{K} denotes
 the number of levels of any given factor.  Hence \code{scoring$in.knots}
 should be an integer vector with as many components as \code{factors};
 if a shorter vector is supplied, its values will be recycled.
+Each component of \code{in.knots} must not exceed the corresponding value 
+of \code{K-2}.
 Since each internal knot involves the selection of two numeric values,
-the total number of fitted parameters will equal the sum of twice the
+the total number of fitted parameters equals the sum of twice the
 \code{in.knots} values, summed over the components of \code{factors}.
 
-Estimation of the transformation parameters is performed by minimization,
-performed by the optimizer \code{optim}, of a suitable target criterion,
-which depends on \code{class(object)}.
+Estimation of the transformation parameters is performed by a numerical process 
+which optimizes a target criterion which depends on \code{class(object)}.
+This numerical scheme is summarized in Section \sQuote{Computational aspects}.
 The admissible classes for \code{object} are currently as follows,
 listed along the corresponding target criteria:
 \tabular{lll}{
@@ -137,16 +167,6 @@ hence the chosen target criterion for \code{mlm} models is a direct extension
 of the one for \code{lm}'s.
 The above list of classes may be expanded in the future, depending on feedback.
 
-In certain cases, models involving  a large number of parameters for 
-regulation of the  scores transformation(s) can lead to difficulties 
-at the optimization step, which is performed by \code{optim}.
-This situation may be flagged by the message
-\preformatted{Non-zero error code returned by optim:...}
-In these circumstances, one direction for improvement is to make use of
-the argument \code{opt.control} for better tuning the working of \code{optim}. 
-In more problematic cases, the auxiliary function \code{smof_refit} is
-provided to improve upon an initial fitting.
-
 The rest of this section is slightly of more technical nature, 
 and it may be not of interest to the casual user, especially if
 the option \code{fast.fit=TRUE} is not selected.
@@ -161,25 +181,31 @@ to the original name.
 For instance, an ordered factor called \code{ordfac} is replaced 
 by the numeric variable \code{ordfac.score} both 
 in the linear predictor of \code{object} and in the \code{data} frame.
-A call to \code{update} using the modified linear predictor and data delivers
-a new fitting, with attached a value of the  target criterion.
-An iterative optimization process of the target criterion leads to 
-the estimated parameters of \code{scoring$family}  with a corresponding 
-fitted model.
 
-If the component \code{scoring$param} is not \code{NULL}, it will be used for
-parameter initialization in the parameter search process. In this case,
-if $\code{scoring$type="distr"}, the even ordered components of \code{scoring$param} 
-must be positive, since they represent tail-weight parameters.
-If $\code{scoring$type="distr"}, they must be a vector of length \code{2*in.knots}.
+If the component \code{scoring$param} is not \code{NULL}, it is assumed 
+to provide initialization values for the parameter search process.
+Specifically, if \code{nf} denotes the number of elements of \code{factors},
+a set of \code{nf} vectors must be provided, one for each component of \code{factors}.
+In case $\code{scoring$type="distr"}, \code{scoring$param} must be a matrix 
+with dimension \code{(nf,2)} where each row vector represents the parameters 
+for the corresponding element of \code{factor}; the second columns of this 
+matrix must have positive elements, since they represent tail-weight parameters.
+In case $\code{scoring$type="smof"}), \code{scoring$param} must be a list 
+of \code{nf} vectors, with lengths \code{2*in.knots}.  
+In this case, it is assumed that each vector comprises two subvectors of 
+ordered values in the range between  \code{1} and \code{M}, 
+where \code{M} denotes the number of levels of the corresponding factor.
 
-There are in fact two variants of the procedure. 
-What has been just described refers to the more \sQuote{general} variant form.
+For the numerical fitting procedure, there exist in fact two variants.
+The more commonly used \sQuote{general} variant form is summarized below 
+in the already-mentioned Section \sQuote{Computational aspects} below.
 However, in the prominent cases of an \code{object} of class \code{lm} 
 or \code{glm}, the procedure can be speeded-up by setting \code{fast.fit=TRUE}, 
-provided the fitted model is of a basic form, that is, a model specification
-via  a formula, and a \code{family} in the \code{glm} case, without  
-non-basic arguments such as \code{offset}, \code{subset} and alike.
+under certain conditions indicated next.
+One such condition is that \code{scoring$type="distr"} is set.
+Also, it is required that the fitted model is of a basic form, that is, 
+a model specification via  a formula, and a \code{family} in the \code{glm} case,
+without  non-basic arguments such as \code{offset}, \code{subset} and alike.
 If these non-basic arguments are included in the \code{object} call, 
 they are ignored for estimation of the \code{scoring$family} parameter.
 However, they are included for producing the final \code{object} 
@@ -192,8 +218,7 @@ different from the one used on the more general case (\code{target.gen}).
 Since the selection of the parameters involves an iterative process with
 dimensionality equal to twice the length of \code{factors} and each iteration
 involves a new data fitting process, the saving in execution time can be 
-substantial in some cases.
-
+appreciable in some cases.
 } % end details
 
 \value{
@@ -207,36 +232,41 @@ A list with the following components:
   \item{scoring}{a list similar to the input argument with the addition of
      the estimates of the parameters.}
   \item{factor.scores}{a list of numeric vectors with the scores assigned 
-    to the levels of each factor.}   
+    to the levels of each factor. In case of scores produced by splines, 
+    attributes with the spline knots are included.}   
   \item{original.factors}{a list with the names and the levels of the original 
     \code{factors}.} 
   \item{target.criterion}{the final value of the target criterion used for fitting.}
-  \item{opt}{the list returned by \code{optim}.}
+  \item{opt}{the list returned by numerical optimization function, with an
+        additional initial item recording \code{opt.method}.}
 }
 
 \section{Background}{
 The methodology proposed in the reference below deals with the presence of 
 ordered factors used as explanatory variables, hence included in the linear 
 predictor of some model under consideration.
-For any given ordered factor with \emph{K} levels, say, a set of \emph{K} 
+For any given ordered factor with \emph{K} levels, say, a set of \eqn{K} 
 numeric scores is introduced, with a certain value assigned to each factor level.
 In the end, the original factor is effectively replaced by a numeric variable.
 This scheme represents a refinement of the elementary scoring system based
-on the basic sequence \emph{1, ..., K}, which constitutes a simple 
+on the basic sequence \eqn{1, \dots, K}, which constitutes a simple 
 time-honoured option to deal with ordered factors, 
 but it is not always appropriate.
 
 There are two variants of the methodology, selected with the value of
 the component \code{type} of the list \code{scoring}.
-Here we summarize the working of the original formulation, selected by
-setting \code{type="distr"}. 
-The actual construction of numeric scores proceeds by selecting \emph{K} 
+Here we summarize the working of the original formulation, 
+selected by setting \code{scoring$type="distr"};
+this happens implicitly if \code{scoring} is not specified.
+The basic logic dealing with the case \code{scoring$type="spline"} is the same, 
+even if the technique is different.
+The actual construction of numeric scores proceeds by selecting \eqn{K} 
 quantiles of a distribution belonging to some parametric family.
 The adoption of a sufficiently flexible parametric family helps to find
 a scoring system best suited for the data under consideration,
-hence improving upon the basic sequence \emph{1, ..., K}.
+hence improving upon the basic sequence \eqn{1, \dots, K}.
 A concomitant product of this scheme is the identification of numeric values
-which indicate how the \emph{K} levels are \dQuote{really} spaced.
+which indicate how the \eqn{K} levels are \dQuote{really} spaced.
 Combining these two features, the key feature of the proposal is 
 interpretability of the construction.
 
@@ -270,6 +300,39 @@ Its operational working is described in the \sQuote{Details}.
 For a more comprehensive exposition and discussion, see the references below.
 }
 
+\section{Computational aspects}{
+The fitting step for selecting the transformation(s) parameters proceeds 
+by an iterative scheme, whose essence is as follows.
+For each choice of the transformation parameter(s), a call to \code{update}
+of the \code{object} provided, using suitably modified linear predictor 
+and data, delivers a new fitting, with attached a corresponding value 
+of the target criterion.
+For this process, work parameters are introduced which are free from the 
+constraints implicit in either variant of the procedure, that is, either with 
+\code{scoring$type="distr"} or with \code{scoring$type="spline"}.
+An iterative optimization process of the target criterion (using the 
+selected \code{opt.method}) leads to optimized work parameters. 
+In the final stage, the selected work parameters are mapped to actual
+model-meaningful parameters which identify a corresponding  fitted model.
+
+In some cases, the optimization step of \code{smof} can run into problems,  
+typically when many parameters regulating the numeric scores are involved. 
+This situation may be flagged by the warning message
+\preformatted{Possibly unsatisfactory outcome from optimization function.}
+% \samp{Possibly unsatisfactory outcome from optimization function.}
+In such a case, further information is printed even if \code{verbose=0}.
+Since this information simply replicates what is delivered by the optimization 
+function selected with \code{opt.method}, the documentation of that function 
+must be examined to decipher the meaning of the message(s); 
+sometimes, this may not be entirely obvious.
+
+To handle these events, sometimes it suffices to increase the number
+of attempted iterations via \code{opt.control} and re-run the \code{smof}. 
+Another simple possibility is to change the selected \code{opt.method}.
+With more awkward situations, a more elaborate use of \code{opt.control} is
+required. Alternatively, consider using of the function \code{smof_refit}.
+}
+
 \note{
 For subsequent computations on the object returned by \code{smof}, difficulties 
 may arise if the call to the fitting function does not set \code{model=TRUE}.
@@ -280,7 +343,7 @@ This implies, for instance, that issuing the \code{survival} command
 \code{survfit(smof4$new.object)}, right after running 
 the code of Example 4 below, would cause an error. 
 The main route to avoid this issue is to set \code{model=TRUE} in the call to
-the fitting function, that is, \code{coxph} or whaterever function is used.
+the fitting function, that is, \code{coxph} or whatever function is used.
 Alternatively, if one does not want to refit an already existing object,
 there exist various ways to overcome this snag; the simplest one is to write  
 \tabular{rl}{
@@ -301,13 +364,12 @@ Azzalini, A. (2024). On the use of splines for representing ordered factors.
 
 \author{Adelchi Azzalini}
 
-% \note{%%  ~~further notes~~}
-
 %% ~Make other sections like Warning with \section{Warning }{....} ~
 
-\seealso{\code{\link{smof_refit}}, \code{\link[stats]{optim}},
+\seealso{\code{\link{smof_refit}}, 
+  \code{\link[stats]{nlminb}}, \code{\link[stats]{optim}},
   \code{\link[stats]{contr.poly}}, \code{\link[stats]{update}}, 
-  \code{\link[stats]{splinefun}}, \code{\link[stats]{plogis}},
+  \code{\link[stats]{splinefun}}, % \code{\link[stats]{plogis}},
   \code{\link[stats]{lm}}, \code{\link[stats]{lm.fit}}, 
   \code{\link[stats]{glm}}, \code{\link[stats]{glm.fit}} 
 }
@@ -372,6 +434,8 @@ plot(smof4)
 \keyword{category}
 \concept{ordered factor}
 \concept{categorical data}
+\concept{monotonic spline}
+\concept{quantile}
  
 
   
